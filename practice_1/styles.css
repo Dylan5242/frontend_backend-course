@@ -1,0 +1,40 @@
+@charset "UTF-8";
+.product-card {
+  padding: 10px 14px;
+  background: #3498db;
+  color: black;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 20px;
+  align-items: start;
+}
+
+/*  левая колонка первая строка */
+.card__title {
+  grid-column: 1/2;
+  grid-row: 1/2;
+  margin-top: 0;
+}
+
+/* левая колонка, вторая строка */
+img {
+  grid-column: 1/2;
+  grid-row: 2/3;
+  max-width: 100%;
+}
+
+/* Родитель описания*/
+.card-description {
+  display: contents;
+}
+
+/* правая колонка первая строка*/
+.card-description h3 {
+  grid-column: 2/3;
+  grid-row: 1/2;
+  margin-top: 0;
+}
+
+/*# sourceMappingURL=styles.css.map */
