@@ -1,5 +1,9 @@
 const express = require('express');
 const { nanoid } = require('nanoid');
+
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+
 const app = express();
 const port = 3000;
 
@@ -13,7 +17,27 @@ const cors = require('cors');
 
 app.use(cors()); // разрешить все источники (только для разработки!)
 
+
 let products  = [
+    {
+        id: 'lE6KsB',
+        title: 'Хлеб',
+        cost: 40,
+        category: 'продукты',
+        description: 'Свежий, хрустящий хлеб',
+        PICTURE_URL: 'https://iceberg31.ru/upload/iblock/a1f/a1fe9c926947696fc9abbc6fa75e83b1.png',
+        amount: 52
+    },
+    {
+        id: 'KosFw5',
+        title: 'Молоко',
+        cost: 80,
+        category: 'продукты',
+        description: 'Молоко простоквашино',
+        PICTURE_URL:
+            'https://cdn.lentochka.lenta.com/resample/webp/250x250/photo/80424/catalog-image/b3359e15-00e8-46d3-a300-b2e3bd2fb3fe.png',
+        amount: 42
+    },
     {id: nanoid(6), title: 'Слон африканский', cost: 160000, category: "животные", description:"Саванный слон характеризуется массивным тяжёлым телом, большой головой на короткой шее, толстыми конечностями, огромными ушами, верхними резцами, превратившимися в бивни, длинным мускулистым хоботом. Согласно «Книге рекордов Гиннесса», это самое крупное наземное млекопитающее. Самым крупным экземпляром из когда-либо зарегистрированных был самец, застреленный в 1955 году в Анголе, его масса составила 10886 кг\n", PICTURE_URL: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/Elephant_near_ndutu.jpg/500px-Elephant_near_ndutu.jpg", amount: 1},
     {id: nanoid(6), title: 'Дуб болотный', cost: 60000,  category: "растения", description:"Дуб болотный – стройное благородное дерево из Северной Африки придаст вашему саду оригинальный внешний вид. Достигает высоты до 25 метров, при диаметре ствола 10 – 15 метров. В совсем молодом возрасте его крона имеет узкопирамидальную форму, с течением лет она превращается в пирамидальную. Кора ствола окрашена в насыщенный зеленовато – коричневый цвет. Темп роста стабильный, примерно 20 – 30 сантиметров в год. Ветви одеты в ярко зеленые зубчатые крупные листья.\n", PICTURE_URL: "https://romashkino.ru/upload/iblock/7e6/30d5ec8582d5b64b989cd7d8356c08ed.jpg", amount: 1},
     {id: nanoid(6), title: 'Каучук синтетический маслонаполненный бутадиен-стирольный в пластиковой упаковке', cost: 226460, category: "иное", description:"Каучук синтетический бутадиен-стирольный, получаемый совместной полимеризацией бутадиена со стиролом  в эмульсии, наполненный маслом TDAE\n", PICTURE_URL: "https://shop.sibur.ru/upload/iblock/6c1/8gutizyyrllgd5xndvn2ptsx0uybr3y6.webp", amount: 10},
@@ -33,7 +57,39 @@ app.use((req, res, next) => {
     next();
 });
 
-// fix функция теперь ищет продукт
+/////////////////////////////////////////////////////////
+// Swagger setup
+/////////////////////////////////////////////////////////
+
+const swaggerOptions = {
+    definition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'API управления товарами',
+            version: '1.0.0',
+            description: 'Простое API для управления товарами',
+        },
+        servers: [
+            {
+                url: `http://localhost:${port}`,
+                description: 'Локальный сервер',
+            },
+        ],
+    },
+
+    apis: ['./index.js'],
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
+// Подключаем Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+/////////////////////////////////////////////////////////
+//
+/////////////////////////////////////////////////////////
+
+// fix функция ищет продукт
 function findProductOr404(id, res) {
     const product = products.find(p => p.id === id);
     if (!product) {
@@ -46,6 +102,40 @@ function findProductOr404(id, res) {
 /////////////////////////////////////////////////////////
 // POST /api/products
 /////////////////////////////////////////////////////////
+
+
+/**
+ * @swagger
+ * /api/products:
+ *   post:
+ *     summary: Создать новый товар
+ *     tags:
+ *       - Products
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               cost:
+ *                 type: number
+ *               category:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               PICTURE_URL:
+ *                 type: string
+ *               amount:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: Товар создан
+ *       400:
+ *         description: Ошибка валидации
+ */
 app.post("/api/products", (req, res) => {
 
     const { title, cost, category, description, PICTURE_URL, amount } = req.body;
@@ -92,6 +182,40 @@ app.post("/api/products", (req, res) => {
 /////////////////////////////////////////////////////////
 // GET /api/products
 /////////////////////////////////////////////////////////
+
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Получить список всех товаров
+ *     tags:
+ *       - Products
+ *     responses:
+ *       200:
+ *         description: Список товаров
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   title:
+ *                     type: string
+ *                   cost:
+ *                     type: number
+ *                   category:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *                   PICTURE_URL:
+ *                     type: string
+ *                   amount:
+ *                     type: number
+ */
+
 app.get("/api/products", (req, res) => {
     res.json(products);
 });
@@ -99,6 +223,47 @@ app.get("/api/products", (req, res) => {
 /////////////////////////////////////////////////////////
 // GET /api/products/:id
 /////////////////////////////////////////////////////////
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Получить товар по ID
+ *     tags:
+ *       - Products
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID товара
+ *     responses:
+ *       200:
+ *         description: Найденный товар
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 title:
+ *                   type: string
+ *                 cost:
+ *                   type: number
+ *                 category:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 PICTURE_URL:
+ *                   type: string
+ *                 amount:
+ *                   type: number
+ *       404:
+ *         description: Товар не найден
+ */
+
 app.get("/api/products/:id", (req, res) => {
     const product = findProductOr404(req.params.id, res);
     if (!product) return;
@@ -108,6 +273,49 @@ app.get("/api/products/:id", (req, res) => {
 /////////////////////////////////////////////////////////
 // PATCH /api/products/:id
 /////////////////////////////////////////////////////////
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   patch:
+ *     summary: Обновить товар по ID
+ *     tags:
+ *       - Products
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID товара
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               cost:
+ *                 type: number
+ *               category:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               PICTURE_URL:
+ *                 type: string
+ *               amount:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Товар успешно обновлён
+ *       400:
+ *         description: Ошибка валидации
+ *       404:
+ *         description: Товар не найден
+ */
+
 app.patch("/api/products/:id", (req, res) => {
 
     const product = findProductOr404(req.params.id, res);
@@ -170,6 +378,28 @@ app.patch("/api/products/:id", (req, res) => {
 /////////////////////////////////////////////////////////
 // DELETE /api/products/:id
 /////////////////////////////////////////////////////////
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   delete:
+ *     summary: Удалить товар по ID
+ *     tags:
+ *       - Products
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID товара
+ *     responses:
+ *       204:
+ *         description: Товар успешно удалён
+ *       404:
+ *         description: Товар не найден
+ */
+
 app.delete("/api/products/:id", (req, res) => {
 
     const exists = products.some(p => p.id === req.params.id);
