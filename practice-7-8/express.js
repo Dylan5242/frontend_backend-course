@@ -1,22 +1,22 @@
-const express = require('express');
-const { nanoid } = require('nanoid');
+const express = require("express");
+const { nanoid } = require("nanoid");
+const bcrypt = require("bcrypt");
 
-const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require("swagger-jsdoc");
+const swaggerUi = require("swagger-ui-express");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const port = 3000;
 
+// const cors = require('cors');
+// app.use(cors()); // разрешить все источники (только для разработки!)
 
+const JWT_SECRET = "access_secret";
+// Время жизни токена
+const ACCESS_EXPIRES_IN = "15m";
 
-// app.use(cors({
-//     origin: 'http://localhost:5173', // разрешаем фронту делать запросы
-//     methods: ['GET','POST','PATCH','DELETE'],
-//     allowedHeaders: ['Content-Type']
-// }));
-const cors = require('cors');
-app.use(cors()); // разрешить все источники (только для разработки!)
-
+const authMiddleware = require("./authMiddleware");
 
 let products  = [
     {
@@ -43,51 +43,235 @@ let products  = [
     {id: nanoid(6), title: 'Каучук синтетический маслонаполненный бутадиен-стирольный в пластиковой упаковке', cost: 226460, category: "иное", description:"Каучук синтетический бутадиен-стирольный, получаемый совместной полимеризацией бутадиена со стиролом  в эмульсии, наполненный маслом TDAE\n", PICTURE_URL: "https://shop.sibur.ru/upload/iblock/6c1/8gutizyyrllgd5xndvn2ptsx0uybr3y6.webp", amount: 10},
 ]
 
-// Middleware для парсинга JSON
-app.use(express.json());
-
-// Middleware для логирования запросов
-app.use((req, res, next) => {
-    res.on('finish', () => {
-        console.log(`[${new Date().toISOString()}] [${req.method}] ${res.statusCode} ${req.path}`);
-        if (['POST','PUT','PATCH'].includes(req.method)) {
-            console.log('Body:', req.body);
-        }
-    });
-    next();
-});
-
-/////////////////////////////////////////////////////////
-// Swagger setup
-/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+// Swagger
+/////////////////////////////////////////////////////
 
 const swaggerOptions = {
     definition: {
-        openapi: '3.0.0',
+        openapi: "3.0.0",
         info: {
-            title: 'API управления товарами',
-            version: '1.0.0',
-            description: 'Простое API для управления товарами',
+            title: "API AUTH",
+            version: "1.0.0",
+            description: "Простое API для изучения авторизации"
         },
         servers: [
             {
                 url: `http://localhost:${port}`,
-                description: 'Локальный сервер',
-            },
-        ],
+                description: "Local server"
+            }
+        ]
     },
-
-    apis: ['./index.js'],
+    apis: [__filename]
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
-// Подключаем Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-/////////////////////////////////////////////////////////
-//
-/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+
+app.use(express.json());
+
+/////////////////////////////////////////////////////
+// Простая база данных
+/////////////////////////////////////////////////////
+
+let users = [];
+
+/////////////////////////////////////////////////////
+// Функции
+/////////////////////////////////////////////////////
+
+function findUserOr404(email, res) {
+
+    const user = users.find(u => u.email === email);
+
+    if (!user) {
+        res.status(404).json({ error: "user not found" });
+        return null;
+    }
+
+    return user;
+}
+
+async function hashPassword(password) {
+    const rounds = 10;
+    return bcrypt.hash(password, rounds);
+}
+
+async function verifyPassword(password, passwordHash) {
+    return bcrypt.compare(password, passwordHash);
+}
+
+/////////////////////////////////////////////////////
+// Logger
+/////////////////////////////////////////////////////
+
+app.use((req, res, next) => {
+
+    res.on("finish", () => {
+
+        console.log(
+            `[${new Date().toISOString()}] [${req.method}] ${res.statusCode} ${req.path}`
+        );
+
+        if (["POST", "PUT", "PATCH"].includes(req.method)) {
+            console.log("Body:", req.body);
+        }
+
+    });
+
+    next();
+});
+
+/////////////////////////////////////////////////////
+// REGISTER
+/////////////////////////////////////////////////////
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Регистрация пользователя
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - first_name
+ *               - last_name
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: ivan@mail.com
+ *               first_name:
+ *                 type: string
+ *                 example: Ivan
+ *               last_name:
+ *                 type: string
+ *                 example: Petrov
+ *               password:
+ *                 type: string
+ *                 example: qwerty123
+ *     responses:
+ *       201:
+ *         description: Пользователь создан
+ */
+app.post("/api/auth/register", async (req, res) => {
+
+    const { email, first_name, last_name, password } = req.body;
+
+    if (!email || !first_name || !last_name || !password) {
+        return res.status(400).json({
+            error: "email, first_name, last_name and password are required"
+        });
+    }
+
+    if (users.some(u => u.email === email)) {
+        return res.status(400).json({
+            error: "user with this email already exists"
+        });
+    }
+
+    const newUser = {
+        id: nanoid(6),
+        email,
+        first_name,
+        last_name,
+        hashedPassword: await hashPassword(password)
+    };
+
+    users.push(newUser);
+
+    res.status(201).json(newUser);
+});
+
+/////////////////////////////////////////////////////
+// LOGIN
+/////////////////////////////////////////////////////
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Авторизация пользователя
+ *     description: Проверяет email и пароль и возвращает JWT токен
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: ivan@mail.com
+ *               password:
+ *                 type: string
+ *                 example: qwerty123
+ *     responses:
+ *       200:
+ *         description: Успешная авторизация
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       400:
+ *         description: Отсутствуют обязательные поля
+ *       401:
+ *         description: Неверные учетные данные
+ */
+app.post("/api/auth/login", async (req, res) => {
+
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({
+            error: "email and password are required"
+        });
+    }
+
+    const user = findUserOr404(email, res);
+    if (!user) return;
+
+    const isAuthenticated = await verifyPassword(password, user.hashedPassword);
+
+    if (!isAuthenticated) {
+        return res.status(401).json({
+            error: "Invalid credentials"
+        });
+    }
+
+    // создание JWT
+    const accessToken = jwt.sign(
+        {
+            sub: user.id,
+            email: user.email
+        },
+        JWT_SECRET,
+        {
+            expiresIn: ACCESS_EXPIRES_IN
+        }
+    );
+
+    res.json({
+        accessToken
+    });
+
+});
 
 // fix функция ищет продукт
 function findProductOr404(id, res) {
@@ -136,7 +320,7 @@ function findProductOr404(id, res) {
  *       400:
  *         description: Ошибка валидации
  */
-app.post("/api/products", (req, res) => {
+app.post("/api/products",(req, res) => {
 
     const { title, cost, category, description, PICTURE_URL, amount } = req.body;
 
@@ -216,7 +400,7 @@ app.post("/api/products", (req, res) => {
  *                     type: number
  */
 
-app.get("/api/products", (req, res) => {
+app.get("/api/products", authMiddleware,(req, res) => {
     res.json(products);
 });
 
@@ -316,7 +500,7 @@ app.get("/api/products/:id", (req, res) => {
  *         description: Товар не найден
  */
 
-app.patch("/api/products/:id", (req, res) => {
+app.patch("/api/products/:id", authMiddleware,(req, res) => {
 
     const product = findProductOr404(req.params.id, res);
     if (!product) return;
@@ -400,7 +584,7 @@ app.patch("/api/products/:id", (req, res) => {
  *         description: Товар не найден
  */
 
-app.delete("/api/products/:id", (req, res) => {
+app.delete("/api/products/:id", authMiddleware,(req, res) => {
 
     const exists = products.some(p => p.id === req.params.id);
     if (!exists)
@@ -411,23 +595,35 @@ app.delete("/api/products/:id", (req, res) => {
     res.status(204).send();
 });
 
+
+/////////////////////////////////////////////////////
+// START SERVER
+/////////////////////////////////////////////////////
+
+app.listen(port, () => {
+
+    console.log(`Server running on http://localhost:${port}`);
+    console.log(`Swagger docs: http://localhost:${port}/api-docs`);
+
+});
+
+app.get("/api/auth/me", authMiddleware, (req, res) => {
+
+    const user = users.find(u => u.id === req.user.sub);
+
+    if (!user) {
+        return res.status(404).json({
+            error: "User not found"
+        });
+    }
+
+    const { hashedPassword, ...safeUser } = user;
+
+    res.json(safeUser);
+});
+
+
 // 404 для всех остальных маршрутов
 app.use((req, res) => {
     res.status(404).json({ error: "Not found" });
-});
-
-// Глобальный обработчик ошибок
-app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err);
-    res.status(500).json({ error: "Internal server error" });
-});
-
-// add обработчик необработанных Promise-ошибок
-process.on("unhandledRejection", (reason) => {
-    console.error("Unhandled Rejection:", reason);
-});
-
-// Запуск сервера
-app.listen(port, () => {
-    console.log(`Сервер запущен на http://localhost:${port}`);
 });
