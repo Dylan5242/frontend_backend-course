@@ -267,8 +267,19 @@ app.post("/api/auth/login", async (req, res) => {
         }
     );
 
+    const refreshToken = jwt.sign(
+        {
+            sub: user.id
+        },
+        REFRESH_SECRET,
+        {
+            expiresIn: REFRESH_EXPIRES_IN
+        }
+    );
+
     res.json({
-        accessToken
+        accessToken,
+        refreshToken
     });
 
 });
