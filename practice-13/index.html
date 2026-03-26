@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Заметки (13-18)</title>
+    <link rel="stylesheet" href="https://unpkg.com/chota@latest">
+
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <!-- Для Android -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- Цвет темы для браузера -->
+    <meta name="theme-color" content="#4285f4">
+    <!-- Для iOS (иконка на домашний экран) -->
+    <link rel="apple-touch-icon" href="./icons/favicon-128x128.png">
+    <!-- Для iOS (статус бар) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="blacktranslucent">
+    <title>Заметки (13-18)</title>
+    <link rel="stylesheet" href="https://unpkg.com/chota@latest">
+    <link rel="icon" href="icons/favicon.ico" sizes="16x16"
+          type="image/ico">
+
+</head>
+<body>
+<h1>«Заметки» - мое первое оффлайн-приложение</h1>
+<form id="note-form" class="row">
+    <input class="col-9" type="text" id="note-input"
+           placeholder="Введите заметку" required>
+    <button class="col-3" type="submit">Добавить</button>
+    app.js (работа с заметками и регистрация SW)
+</form>
+<ul id="notes-list"></ul>
+<script src="app.js"></script>
+</body>
+</html>
